@@ -1,6 +1,8 @@
 import org.joda.time.DateTime
 import org.joda.time.format.DateTimeFormat
 import java.io.File
+import java.util.*
+
 /**
  * Created by embletona on 30/11/2016.
  */
@@ -58,17 +60,11 @@ fun createTrack(talks:Map<String, Int>):List<Pair<String, String>> {
     return decoratedMorning + lunch + decoratedAfternoon + networking
 }
 
-tailrec fun createSession(talks:Map<String, Int>, minLength:Int, maxLength:Int, session:List<String> = emptyList(), timeUsed:Int = 0):List<String> {
+fun createSession(talks:Map<String, Int>, minLength:Int, maxLength:Int):List<String> {
 
-    val remainingTime = maxLength - timeUsed
-
-    if (talks.filter { it.value <= remainingTime }.isEmpty()) {
-        return session
-    }
-
-    val (talkToUse, lengthOfTalk) = talks.filter { it.value <= remainingTime }.entries.first()
-    val remainingTalks = talks.filterNot { it.key == talkToUse }
-    return createSession(remainingTalks, minLength, maxLength, session + talkToUse, timeUsed + lengthOfTalk )
+    val sortedTalks = talks.toList().sortedBy { it.second }.reversed()
+    val session = getTalks(minLength, maxLength, sortedTalks, sortedTalks)
+    return session.map { it.first }
 }
 
 tailrec fun decorateWithTimeStamps(allTalks:Map<String, Int>, talksToDecorate:List<String>, startTime:DateTime): List<Pair<String,String>> {
@@ -82,4 +78,32 @@ tailrec fun decorateWithTimeStamps(allTalks:Map<String, Int>, talksToDecorate:Li
     val fmt = DateTimeFormat.forPattern("KK:mmaa")
     val timeStamp = fmt.print(startTime)
     return decorateWithTimeStamps(allTalks, talksToDecorate.drop(1), newStartTime) + Pair(timeStamp, talkName)
+}
+
+tailrec fun getTalks(min:Int, max:Int, initial:List<Pair<String,Int>>, remaining:List<Pair<String,Int>>, track:List<Pair<String,Int>> = emptyList()):List<Pair<String,Int>> {
+    val length = track.sumBy { it.second }
+
+    if (length in min..max) {
+        return track
+    }
+
+    val remainder = max - length
+
+    val talksToAdd = remaining.filter { it.second <= remainder }
+
+    if (talksToAdd.isNotEmpty()) {
+        val talkToAdd = talksToAdd.first()
+        val newRemaining = remaining - talkToAdd
+        val newTack = track + talkToAdd
+        return getTalks(min, max, initial, newRemaining, newTack)
+    }
+
+    if (track.size > 1) {
+        val newTrack = track.dropLast(1)
+        return getTalks(min, max, initial, remaining, newTrack)
+    }
+
+    val newRemaining = initial - track[0]
+    val newTrack = LinkedList<Pair<String, Int>>()
+    return getTalks(min, max, initial, newRemaining, newTrack)
 }
